@@ -1,0 +1,30 @@
+# ticket-agent configuration. Re-read at every check - no restart needed
+# (except timezone / web_base_url, which are read at startup).
+
+timezone: America/New_York
+web_base_url: http://192.168.1.67:8097
+default_quantity: 2            # when a request doesn't say how many tickets
+
+# SeatGeek's lowest_price is meant to be all-in per ticket. If seatgeek.com shows a higher
+# checkout price for the same seats, set this (e.g. 1.2) so targets compare all-in prices.
+fee_multiplier: 1.0
+
+schedule:
+  check_every_minutes: 60      # normal pace
+  close_hours: 48              # in the last 48 hours before the event...
+  close_every_minutes: 15      # ...check every 15 minutes
+
+alerts:                        # a new low alerts when it beats the last announced low by
+  min_drop_usd: 5              #   at least $5
+  min_drop_pct: 3              #   or at least 3%
+  min_new_listings: 10         # "more seats": listing count up by at least 10
+  min_new_listings_pct: 10     #   and at least 10% since last announced
+                               # going at or under your target always alerts (once per crossing)
+
+parsing:                       # Claude reads what you type when adding an event
+  model: claude-opus-5-5
+  effort: low
+
+sources:
+  seatgeek: true               # cheapest resale price + listing count (SEATGEEK_CLIENT_ID)
+  ticketmaster: true           # face-value range + sale status, info only (TICKETMASTER_API_KEY)
