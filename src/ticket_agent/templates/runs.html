@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Runs · Ticket Agent{% endblock %}
+{% block content %}
+<table>
+  <tr><th>Started</th><th>Events</th><th>Alerts</th><th>Errors</th></tr>
+  {% for r in runs %}{% set errs = r.errors | fromjson %}
+  <tr>
+    <td>{{ r.started_at | localtime }}{% if not r.finished_at %} <span class="pill">running</span>{% endif %}</td>
+    <td>{{ r.events }}</td><td>{{ r.alerts }}</td>
+    <td>{% if errs %}<details><summary>{{ errs | length }}</summary><ul>{% for e in errs %}<li class="meta">{{ e }}</li>{% endfor %}</ul></details>{% else %}—{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="4" class="notice">No checks yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

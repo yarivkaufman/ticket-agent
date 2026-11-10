@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<form class="toolbar" method="post" action="/events">
+  <input type="text" name="text" placeholder="e.g. Knicks vs Portland at MSG Nov 21, 3 tickets, max $120 — or a SeatGeek/Ticketmaster link" required>
+  <button class="primary">Track</button>
+</form>
+<div class="toolbar">
+  <div class="tabs" style="margin:0">
+    <a class="tab {{ 'on' if view != 'past' }}" href="/?view=active">Tracking<span class="n">{{ n_active }}</span></a>
+    <a class="tab {{ 'on' if view == 'past' }}" href="/?view=past">Stopped / past<span class="n">{{ n_past }}</span></a>
+  </div>
+  {% if last_run %}
+  <span class="scan-tip meta" tabindex="0" style="margin-left:auto">
+    Last check {{ last_run.finished_at | localtime }} ·
+    {% if last_errors %}<span class="pill warn">⚠ {{ last_errors | length }} issue{{ 's' if last_errors | length > 1 }}</span>{% else %}<span class="pill ok">no issues</span>{% endif %}
+    <span class="scan-tip-box" role="tooltip">
+      {{ last_run.events }} events, {{ last_run.alerts }} alerts.
+      {% if last_errors %}<ul>{% for e in last_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% else %}<br>No errors.{% endif %}
+      <a href="/runs">All runs</a>
+    </span>
+  </span>
+  {% endif %}
+  <form class="inline" method="post" action="/run" {{ 'style="margin-left:auto"' | safe if not last_run }}>
+    <button {{ 'disabled' if running }}>{{ 'Checking…' if running else 'Check all now' }}</button>
+  </form>
+</div>
+{% if not email_on %}<p class="notice">✉️ Email isn't set up yet (SMTP settings in .env): alerts are queued and go out once it is.</p>{% endif %}
+{% if adding %}<p class="notice">⏳ Adding: {{ adding | join(', ') }} — refresh in a moment.</p>{% endif %}
+{% if last_message %}<p class="notice">{{ last_message }}</p>{% endif %}
+
+{% for ev in events %}{% set s = latest[ev.id].get('seatgeek') %}{% set t = latest[ev.id].get('ticketmaster') %}
+<div class="card">
+  <div class="row">
+    <a class="title" href="/events/{{ ev.id }}">{{ ev.name }}</a>
+    {% if ev.max_price %}<span class="pill">target {{ ev.max_price | money }}</span>{% endif %}
+    <span class="pill">{{ ev.quantity }} tickets</span>
+    {% if ev.last_error %}<span class="pill warn" title="{{ ev.last_error }}">check failed</span>{% endif %}
+    <span class="meta" style="margin-left:auto">{{ ('checked ' ~ (ev.last_scan_at | localtime)) if ev.last_scan_at else 'not checked yet' }}</span>
+  </div>
+  <div class="meta">{{ ev.starts_local | eventtime }}{% if ev.venue %} · {{ ev.venue }}{% endif %}</div>
+  <div class="prices">
+    <div class="price">
+      <div class="cond">Cheapest ticket (SeatGeek)</div>
+      {% if s and s.lowest is not none %}{% set p = s.lowest * fee %}
+      <div class="amt {{ 'hit-target' if ev.max_price and p <= ev.max_price }}">{{ p | money }}</div>
+      <div class="meta"><a href="{{ buy_url(ev.seatgeek_url, ev.quantity) }}" target="_blank" rel="noopener">see seats</a></div>
+      {% else %}<div class="amt">—</div><div class="meta">{{ 'no listings' if s else 'not on SeatGeek' }}</div>{% endif %}
+    </div>
+    <div class="price">
+      <div class="cond">Listings</div>
+      <div class="amt">{{ s.listings if s and s.listings is not none else '—' }}</div>
+      <div class="meta">{% if s and s.average %}average {{ (s.average * fee) | money }}{% endif %}</div>
+    </div>
+    <div class="price">
+      <div class="cond">Ticketmaster face value</div>
+      {% if t and t.lowest is not none %}<div class="amt">{{ t.lowest | money }}{% if t.highest %}–{{ t.highest | money }}{% endif %}</div>
+      {% else %}<div class="amt">—</div>{% endif %}
+      <div class="meta">{% if ev.tm_url %}<a href="{{ ev.tm_url }}" target="_blank" rel="noopener">{{ t.status if t and t.status else 'open' }}</a>{% else %}not found{% endif %}</div>
+    </div>
+  </div>
+</div>
+{% else %}
+<p class="notice">{{ 'Nothing here.' if view == 'past' else 'Nothing tracked yet — describe a game or show above.' }}</p>
+{% endfor %}
+<p class="meta">SeatGeek prices are the cheapest single ticket, all-in per ticket. Ticketmaster shows face value (before fees) for primary sale only.
+Sources: {{ sources | join(', ') or 'none set up' }}. Checks hourly, every 15 minutes in the last 2 days.</p>
+{% endblock %}

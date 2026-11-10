@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ ev.name }} · Ticket Agent{% endblock %}
+{% block content %}{% set s = latest.get('seatgeek') %}{% set t = latest.get('ticketmaster') %}
+<p class="meta"><a href="/">← All events</a></p>
+<div class="row" style="margin-bottom:6px">
+  <h2 style="margin:0;font-size:20px">{{ ev.name }}</h2>
+  {% if not ev.active %}<span class="pill">stopped</span>{% endif %}
+  <span style="margin-left:auto" class="row">
+    <form class="inline" method="post" action="/events/{{ ev.id }}/check"><button>Check now</button></form>
+    <form class="inline" method="post" action="/events/{{ ev.id }}/active">
+      <input type="hidden" name="active" value="{{ 0 if ev.active else 1 }}">
+      <button>{{ 'Stop tracking' if ev.active else 'Resume tracking' }}</button></form>
+  </span>
+</div>
+<p class="meta">{{ ev.starts_local | eventtime }}{% if ev.venue %} · {{ ev.venue }}{% endif %}
+  {% if ev.seatgeek_url %} · <a href="{{ buy_url(ev.seatgeek_url, ev.quantity) }}" target="_blank" rel="noopener">SeatGeek ({{ ev.quantity }} tickets)</a>{% endif %}
+  {% if ev.tm_url %} · <a href="{{ ev.tm_url }}" target="_blank" rel="noopener">Ticketmaster</a>{% endif %}</p>
+{% if ev.last_error %}<p class="notice">⚠️ Last check: {{ ev.last_error }}</p>{% endif %}
+
+<div class="prices" style="margin-bottom:14px">
+  <div class="price" style="background:var(--surface)">
+    <div class="cond">Cheapest ticket now</div>
+    {% if s and s.lowest is not none %}{% set p = s.lowest * fee %}
+    <div class="amt {{ 'hit-target' if ev.max_price and p <= ev.max_price }}">{{ p | money }}</div>
+    <div class="meta">{{ ev.quantity }} tickets ≈ {{ (p * ev.quantity) | money }}{% if ev.max_price %} · target {{ ev.max_price | money }}{% endif %}</div>
+    {% else %}<div class="amt">—</div>{% endif %}
+  </div>
+  <div class="price" style="background:var(--surface)">
+    <div class="cond">Lowest seen</div>
+    <div class="amt">{{ (lowest_seen * fee) | money if lowest_seen is not none else '—' }}</div>
+    <div class="meta">{{ s.listings ~ ' listings now' if s and s.listings is not none else '' }}</div>
+  </div>
+  <div class="price" style="background:var(--surface)">
+    <div class="cond">Ticketmaster face value</div>
+    {% if t and t.lowest is not none %}<div class="amt">{{ t.lowest | money }}{% if t.highest %}–{{ t.highest | money }}{% endif %}</div>{% else %}<div class="amt">—</div>{% endif %}
+    <div class="meta">{{ t.status if t and t.status else '' }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Cheapest ticket over time</h2>
+  {% if chart %}{{ chart | safe }}
+  <p class="meta">Step line = cheapest ticket on SeatGeek at each check · dashed = your target · gaps = no listings</p>
+  {% else %}<p class="notice">The chart appears after the second check.</p>{% endif %}
+</div>
+
+<div class="panel">
+  <h2>Settings</h2>
+  <form method="post" action="/events/{{ ev.id }}/settings" class="settings">
+    <label>Name</label><input type="text" name="name" value="{{ ev.name }}">
+    <label>Tickets</label><input type="number" name="quantity" min="1" max="20" value="{{ ev.quantity }}">
+    <label>Target (per ticket, all-in)</label><input type="text" name="max_price" value="{{ '%g' % ev.max_price if ev.max_price else '' }}" placeholder="e.g. 120">
+    <label>SeatGeek event id</label><input type="text" name="seatgeek_id" value="{{ ev.seatgeek_id or '' }}">
+    <label>Ticketmaster event id</label><input type="text" name="tm_id" value="{{ ev.tm_id or '' }}">
+    <span></span><span><button class="primary">Save</button></span>
+  </form>
+  <p class="meta">Added from: “{{ ev.request }}”. Wrong game? Fix the event id here (it's the number at the end of the SeatGeek link).</p>
+</div>
+
+<div class="panel">
+  <h2>Alerts</h2>
+  {% for a in alerts %}
+  <div style="margin-bottom:10px"><div class="meta">{{ a.at | localtime }} · {{ 'emailed' if a.sent_at else 'queued' }}</div>{{ a.text | replace('\n', '<br>') | safe }}</div>
+  {% else %}<p class="notice">No alerts yet.</p>{% endfor %}
+</div>
+
+<form method="post" action="/events/{{ ev.id }}/delete" onsubmit="return confirm('Delete this event and its history?')">
+  <button class="danger">Delete event</button>
+</form>
+{% endblock %}
