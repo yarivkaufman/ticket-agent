@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import logging
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -93,8 +94,9 @@ class Tracker:
 
     def resolve(self, text: str) -> tuple[EventRequest, EventInfo | None, EventInfo | None]:
         """(request, SeatGeek event, Ticketmaster event) for what was typed or linked."""
-        sg_id = sg.event_id_from_url(text)
-        tm_id = tm.event_id_from_url(text)
+        urls = re.findall(r"https?://[^\s<>\"']+", text)
+        sg_id = next((i for u in urls if (i := sg.event_id_from_url(u))), None)
+        tm_id = next((i for u in urls if (i := tm.event_id_from_url(u))), None)
         sg_ev = tm_ev = None
         if sg_id and self.seatgeek:
             sg_ev = self.seatgeek.event(sg_id)
@@ -106,13 +108,23 @@ class Tracker:
         if linked:
             req.date = linked.date
         if self.seatgeek and sg_ev is None:
-            sg_ev = best_match(req, self.seatgeek.search(req.search_query, req.date))
+            sg_ev = self._find(self.seatgeek, req)
         if self.ticketmaster and tm_ev is None:
             try:
-                tm_ev = best_match(req, self.ticketmaster.search(req.search_query, req.date))
+                tm_ev = self._find(self.ticketmaster, req)
             except SourceError as e:  # Ticketmaster is extra info; SeatGeek is what's tracked
                 log.warning("ticketmaster search failed: %s", e)
         return req, sg_ev, tm_ev
+
+    @staticmethod
+    def _find(source, req: EventRequest) -> EventInfo | None:
+        """Search with the full query, then (SeatGeek doesn't match "Knicks Trail Blazers") with
+        each team/performer on its own, and pick the best match on the requested date."""
+        for q in search_queries(req.search_query):
+            ev = best_match(req, source.search(q, req.date))
+            if ev:
+                return ev
+        return None
 
     def add(self, text: str) -> int:
         if not (self.seatgeek or self.ticketmaster):
@@ -161,6 +173,8 @@ class Tracker:
                                      tm_now.highest, None, tm_now.status)
             except SourceError as e:
                 res.errors.append(f"ticketmaster: {e}")
+        if sg_now is not None and sg_now.lowest is None and sg_now.listings is None:
+            res.errors.append("seatgeek: the API returned no price data for this event")
         self.db.update_event(ev["id"], last_scan_at=at, last_error="; ".join(res.errors) or None)
         if sg_now is None:
             return res
@@ -171,6 +185,23 @@ class Tracker:
         if d.kinds:
             res.alert_id = self.db.add_alert(ev["id"], d.kinds, alert_text(ev, d.lines, tm_now))
         return res
+
+
+NICKNAME_TAILS = {"blazers", "sox", "jays", "knights", "wings", "city", "united", "fc"}
+
+
+def search_queries(query: str) -> list[str]:
+    """'Knicks Trail Blazers' -> ['Knicks Trail Blazers', 'Trail Blazers', 'Knicks', ...]: the full
+    query, then each name. Two-word nicknames (Trail Blazers, Red Sox) stay together."""
+    words = query.split()
+    names: list[str] = []
+    for w in words:
+        if names and w.lower() in NICKNAME_TAILS:
+            names[-1] += " " + w
+        else:
+            names.append(w)
+    out = [query] + sorted(names, key=len, reverse=True)
+    return list(dict.fromkeys(q for q in out if q.strip()))
 
 
 def parse_utc(s: str | None) -> datetime | None:

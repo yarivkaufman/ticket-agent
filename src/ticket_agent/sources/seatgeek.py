@@ -47,7 +47,7 @@ def event_id_from_url(url: str) -> str | None:
     host = urlparse(url).hostname or ""
     if not (host == "seatgeek.com" or host.endswith(".seatgeek.com")):
         return None
-    m = re.search(r"/(\d{6,})/?(?:\?|$)", url)
+    m = re.search(r"/(\d{6,})/?(?:[?#]|$)", url.strip())
     return m.group(1) if m else None
 
 
@@ -62,13 +62,17 @@ class SeatGeek:
     name = "seatgeek"
     label = "SeatGeek"
 
-    def __init__(self, client_id: str, timeout: float = 20, client: httpx.Client | None = None):
-        self.client_id = client_id
+    def __init__(self, client_id: str, timeout: float = 20, client: httpx.Client | None = None,
+                 client_secret: str | None = None):
+        self.client_id, self.client_secret = client_id, client_secret
         self.http = client or httpx.Client(timeout=timeout, headers={"User-Agent": "ticket-agent"})
 
     def _get(self, path: str, params: dict) -> dict:
         try:
-            r = self.http.get(f"{API}{path}", params={**params, "client_id": self.client_id})
+            auth = {"client_id": self.client_id}
+            if self.client_secret:
+                auth["client_secret"] = self.client_secret
+            r = self.http.get(f"{API}{path}", params={**params, **auth})
         except httpx.HTTPError as e:
             raise SourceError(f"SeatGeek unreachable: {type(e).__name__}") from None
         if r.status_code in (401, 403):
