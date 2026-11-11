@@ -32,7 +32,7 @@ class Parsing(BaseModel):
 
 class Config(BaseModel):
     timezone: str = "America/New_York"
-    web_base_url: str = "http://localhost:8097"
+    web_base_url: str = "http://localhost:8098"
     default_quantity: int = 2
     # SeatGeek's lowest_price is the all-in price per ticket. If a check on seatgeek.com shows
     # fees on top, set this (e.g. 1.25) so totals and targets compare all-in prices.

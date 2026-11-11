@@ -17,7 +17,7 @@ drops, or more seats get listed. See README.md for how it works.
 - Checks: every hour, every 15 minutes in the last 2 days (config.yaml `schedule`).
 - Alerts: email only, Telegram left out for now. To yariv@kaufmanweb.net, sent from a separate
   mailbox for the agent (not Yariv's own account), via SMTP + app password in the server .env.
-- Hosting: same Linux server as price-agent (192.168.1.67), ~/ticket-agent, port 8097.
+- Hosting: same Linux server as price-agent (192.168.1.67), ~/ticket-agent, port 8098 (8097 is taken by flight-finder).
   Outside access wanted, like price-agent (Cloudflare Tunnel + Access); not set up yet.
 
 ## Working rules
