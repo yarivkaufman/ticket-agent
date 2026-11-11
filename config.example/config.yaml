@@ -2,7 +2,7 @@
 # (except timezone / web_base_url, which are read at startup).
 
 timezone: America/New_York
-web_base_url: http://192.168.1.67:8097
+web_base_url: http://192.168.1.67:8098
 default_quantity: 2            # when a request doesn't say how many tickets
 
 # SeatGeek's lowest_price is meant to be all-in per ticket. If seatgeek.com shows a higher

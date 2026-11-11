@@ -255,3 +255,68 @@ def test_to_plain():
 def test_event_time():
     assert event_time("2026-11-21T19:30:00") == "Sat Nov 21, 7:30 PM"
     assert event_time(None) == "date TBA"
+
+
+# --- search fallbacks and links (found on the first live run) ---------------------------------
+
+def test_search_queries_split_names():
+    from ticket_agent.pipeline import search_queries
+    assert search_queries("Knicks Trail Blazers") == ["Knicks Trail Blazers", "Trail Blazers", "Knicks"]
+    assert search_queries("Taylor Swift") == ["Taylor Swift", "Taylor", "Swift"]
+
+
+class OneTeamSG(FakeSG):
+    """Like SeatGeek: a two-team query finds nothing, one team finds the game."""
+
+    def search(self, q, on=None, limit=10):
+        return [] if " " in q and q != "Trail Blazers" else super().search(q, on, limit)
+
+
+def test_add_falls_back_to_one_team(tmp_path):
+    db = DB(tmp_path / "t.db")
+    t = Tracker(CFG, db, Parser(CFG.parsing, use_claude=False), OneTeamSG(), None)
+    e = db.event(t.add("Knicks vs Trail Blazers Nov 21, 3 tickets, max $120"))
+    assert e["seatgeek_id"] == "17654321" and e["quantity"] == 3
+
+
+def test_add_by_link_inside_text(tmp_path):
+    seen = []
+
+    class LinkSG(FakeSG):
+        def event(self, eid):
+            seen.append(eid)
+            return super().event(eid)
+
+        def search(self, q, on=None, limit=10):
+            raise AssertionError("should use the link, not search")
+
+    db = DB(tmp_path / "t.db")
+    t = Tracker(CFG, db, Parser(CFG.parsing, use_claude=False), LinkSG(), None)
+    url = "https://seatgeek.com/trail-blazers-at-knicks-tickets/11-21-2026-new-york-madison-square-garden/nba/18494860"
+    e = db.event(t.add(f"{url} 3 tickets, max $120"))
+    assert seen[0] == "18494860" and e["quantity"] == 3 and e["max_price"] == 120
+
+
+def test_no_price_data_is_reported(tmp_path):
+    class NoStats(FakeSG):
+        def event(self, eid):
+            e = super().event(eid)
+            e.lowest = e.listings = None
+            return e
+
+    db = DB(tmp_path / "t.db")
+    t = Tracker(CFG, db, Parser(CFG.parsing, use_claude=False), NoStats(), None)
+    eid = t.add("Knicks Portland Nov 21")
+    res = t.check(db.event(eid))
+    assert res.errors == ["seatgeek: the API returned no price data for this event"]
+
+
+def test_client_secret_is_sent():
+    seen = {}
+
+    def handler(req):
+        seen.update(dict(req.url.params))
+        return httpx.Response(200, json=sg_json())
+
+    sg.SeatGeek("cid", client=fake_client(handler), client_secret="sec").event("1")
+    assert seen["client_id"] == "cid" and seen["client_secret"] == "sec"

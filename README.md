@@ -28,7 +28,7 @@ several tickets, open the SeatGeek link (quantity preselected) to see seats toge
 ```
 cp .env.example .env            # API keys + SMTP (server only)
 mkdir -p config && cp config.example/config.yaml config/
-docker compose up -d --build    # dashboard on :8097
+docker compose up -d --build    # dashboard on :8098
 docker compose exec ticket-agent ticket-agent test-email
 ```
 

@@ -32,7 +32,7 @@ class Parsing(BaseModel):
 
 class Config(BaseModel):
     timezone: str = "America/New_York"
-    web_base_url: str = "http://localhost:8097"
+    web_base_url: str = "http://localhost:8098"
     default_quantity: int = 2
     # SeatGeek's lowest_price is the all-in price per ticket. If a check on seatgeek.com shows
     # fees on top, set this (e.g. 1.25) so totals and targets compare all-in prices.
@@ -60,6 +60,7 @@ class Settings(BaseModel):
     admin_email: str | None = None  # maintenance/failure messages; empty = log + /runs only
     anthropic_configured: bool
     seatgeek_client_id: str | None = Field(default=None, repr=False)
+    seatgeek_client_secret: str | None = Field(default=None, repr=False)
     ticketmaster_key: str | None = Field(default=None, repr=False)
 
     @classmethod
@@ -78,6 +79,7 @@ class Settings(BaseModel):
             admin_email=env("ADMIN_EMAIL"),
             anthropic_configured=bool(os.environ.get("ANTHROPIC_API_KEY")),
             seatgeek_client_id=os.environ.get("SEATGEEK_CLIENT_ID", "").strip() or None,
+            seatgeek_client_secret=env("SEATGEEK_CLIENT_SECRET"),
             ticketmaster_key=os.environ.get("TICKETMASTER_API_KEY", "").strip() or None,
         )
 

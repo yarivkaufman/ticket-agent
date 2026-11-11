@@ -33,7 +33,8 @@ templates.env.globals["buy_url"] = sg.buy_url
 
 
 def build_sources(settings: Settings) -> tuple[sg.SeatGeek | None, tm.Ticketmaster | None]:
-    return (sg.SeatGeek(settings.seatgeek_client_id) if settings.seatgeek_client_id else None,
+    return (sg.SeatGeek(settings.seatgeek_client_id, client_secret=settings.seatgeek_client_secret)
+            if settings.seatgeek_client_id else None,
             tm.Ticketmaster(settings.ticketmaster_key) if settings.ticketmaster_key else None)
 
 
